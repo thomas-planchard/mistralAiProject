@@ -44,7 +44,7 @@
       color: #444;
     }
     
-    /* Code Editor Styles: CodeMirror will replace the textarea */
+    /* CodeMirror Editor Styles for the user input */
     .CodeMirror {
       border: 1px solid #333;
       border-radius: 5px;
@@ -67,7 +67,7 @@
       background-color: #005a9e;
     }
     
-    /* Markdown Answer Styles */
+    /* Markdown Answer Container Styles */
     .markdown {
       background-color: #1e1e1e;
       color: #ffffff;
@@ -79,16 +79,16 @@
       position: relative;
     }
     
-    /* New style for code blocks within the markdown container */
+    /* Code Block Styles within Markdown */
     .markdown pre {
       position: relative;
-      background-color: #2d2d2d; /* New background color for code blocks */
+      background-color: #2d2d2d; /* Custom background for code blocks */
       border-radius: 5px;
       padding: 1rem;
       overflow-x: auto;
     }
     .markdown pre code {
-      background: none; /* Remove any default background on <code> */
+      background: none; /* Remove default background */
       color: #d4d4d4;
     }
     
@@ -107,7 +107,7 @@
       width: 100%;
       height: 100%;
       overflow: auto;
-      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+      background-color: rgba(0, 0, 0, 0.5);
     }
     .modal-content {
       background-color: #fff;
@@ -120,8 +120,8 @@
       border-radius: 10px;
     }
     .loader {
-      border: 8px solid #f3f3f3; /* Light grey */
-      border-top: 8px solid #007acc; /* Blue */
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #007acc;
       border-radius: 50%;
       width: 60px;
       height: 60px;
@@ -133,7 +133,7 @@
       100% { transform: rotate(360deg); }
     }
     
-    /* Styles for Copy Button in Code Blocks */
+    /* Styles for the Copy Button in Code Blocks */
     .copy-btn {
       position: absolute;
       top: 8px;
@@ -151,15 +151,12 @@
     .copy-btn:hover {
       opacity: 1;
     }
-    /* Ensure that the pre element is positioned relative so the button can be absolute */
-    .markdown pre {
-      position: relative;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>AI-Powered Code Assistant</h1>
+    <!-- Form for submitting code -->
     <form action="/analyze" method="post" id="analyzeForm">
       <label for="code_snippet">Enter your Python code snippet:</label>
       <!-- The textarea will be transformed into a CodeMirror editor -->
@@ -174,7 +171,7 @@
         <p class="error"><strong>Syntax Error:</strong> {{ analysis.syntax_error }}</p>
       {% endif %}
       <h3>Suggestions:</h3>
-      <!-- Container where the Markdown answer will be rendered -->
+      <!-- Container where the rendered Markdown will be injected -->
       <div class="markdown" id="analysisContent"></div>
     {% endif %}
   </div>
@@ -187,82 +184,91 @@
     </div>
   </div>
 
-  <!-- CodeMirror JS -->
+  <!-- CodeMirror JS and mode -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+  
   <script>
-    
-    var editor = CodeMirror.fromTextArea(document.getElementById("code_snippet"), {
+    /********** Initialize the Input Editor **********/
+    const inputEditor = CodeMirror.fromTextArea(document.getElementById("code_snippet"), {
       lineNumbers: true,
       mode: "python",
       theme: "dracula",
     });
-
-    editor.getWrapperElement().style.minWidth = "500px";
-
+    // Ensure the editor has a minimum width for usability
+    inputEditor.getWrapperElement().style.minWidth = "500px";
+    
     // Show the loading modal when the form is submitted
-    document.getElementById("analyzeForm").addEventListener("submit", function() {
+    document.getElementById("analyzeForm").addEventListener("submit", () => {
       document.getElementById("loadingModal").style.display = "block";
     });
   </script>
 
   {% if analysis is defined and analysis and analysis.suggestions %}
   <script>
-    // Use the tojson filter to safely escape the analysis suggestions for JS.
-    const analysisMarkdown = {{ analysis.suggestions | tojson | safe}};
+    /********** Render Analysis Markdown **********/
+    // Safely retrieve the Markdown content from the server using tojson
+    const analysisMarkdown = {{ analysis.suggestions | tojson | safe }};
     // Convert the Markdown to HTML using marked
     const htmlContent = marked.parse(analysisMarkdown);
-    // Insert the converted HTML into the analysis container
+    // Inject the rendered HTML into the analysis content container
     document.getElementById('analysisContent').innerHTML = htmlContent;
 
-    // Function to add copy buttons to all code blocks within the analysisContent
+    /********** Add Copy Buttons to Code Blocks **********/
+    /**
+     * For each <pre> code block within the rendered Markdown:
+     * - Replace it with a read-only CodeMirror instance for consistent Dracula styling.
+     * - Append a copy button that copies the code to the clipboard.
+     */
     function addCopyButtons() {
-      // Find all <pre> elements within the markdown container
       const codeBlocks = document.querySelectorAll('#analysisContent pre');
       codeBlocks.forEach(block => {
-        // Create the copy button
-        const button = document.createElement("button");
-        button.innerText = "Copy";
-        button.className = "copy-btn";
-        // Append the button to the code block (positioned absolutely via CSS)
-        const code = block.querySelector('code');
-    if (code) {
-      // Create CodeMirror instance
-      const editor = CodeMirror(function(elt) {
-        block.parentNode.replaceChild(elt, block);
-      }, {
-        value: code.textContent,
-        mode: 'python', 
-        theme: 'dracula', 
-        readOnly: true,
-        cursorHeight: 0,     
-        lineNumbers: true,
-      });
-
-      const wrapper = editor.getWrapperElement();
-      wrapper.style.height = 'auto';
-      editor.setSize(null, 'auto');
-
-      // Add copy button to the CodeMirror wrapper
-      editor.getWrapperElement().appendChild(button);
-    }
-
-        // When the button is clicked, copy the code inside the block's <code> element
-        button.addEventListener("click", () => {
-          const code = block.querySelector("code").innerText;
-          navigator.clipboard.writeText(code).then(() => {
-            button.innerText = "Copied!";
-            setTimeout(() => {
-              button.innerText = "Copy";
-            }, 2000);
-          }).catch(err => {
-            console.error("Error copying text: ", err);
+        // Create a copy button element
+        const copyButton = document.createElement("button");
+        copyButton.innerText = "Copy";
+        copyButton.className = "copy-btn";
+        
+        // Look for the <code> element inside the block
+        const codeElement = block.querySelector('code');
+        if (codeElement) {
+          // Create a read-only CodeMirror instance to display the code block
+          const cmViewer = CodeMirror(function(elt) {
+            block.parentNode.replaceChild(elt, block);
+          }, {
+            value: codeElement.textContent,
+            mode: 'python', 
+            theme: 'dracula', 
+            readOnly: true,
+            cursorHeight: 0,  // Hide the blinking cursor
+            lineNumbers: true,
           });
-        });
+          
+          // Adjust the CodeMirror wrapper's height to auto
+          const wrapper = cmViewer.getWrapperElement();
+          wrapper.style.height = 'auto';
+          cmViewer.setSize(null, 'auto');
+          
+          // Append the copy button to the CodeMirror wrapper
+          wrapper.appendChild(copyButton);
+          
+          // Attach an event listener to the copy button to copy the code
+          copyButton.addEventListener("click", () => {
+            // Retrieve the code from the CodeMirror instance
+            const codeText = cmViewer.getValue();
+            navigator.clipboard.writeText(codeText).then(() => {
+              copyButton.innerText = "Copied!";
+              setTimeout(() => {
+                copyButton.innerText = "Copy";
+              }, 2000);
+            }).catch(err => {
+              console.error("Error copying text: ", err);
+            });
+          });
+        }
       });
     }
-
-    // Call the function to add copy buttons
+    
+    // Execute the function to add copy buttons after rendering the markdown
     addCopyButtons();
   </script>
   {% endif %}
