@@ -1,31 +1,270 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>AI-Powered Code Assistant</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; }
-        textarea { width: 100%; font-family: monospace; }
-        .error { color: red; }
-        pre { background: #f4f4f4; padding: 1rem; }
-    </style>
+  <meta charset="UTF-8">
+  <title>AI-Powered Code Assistant</title>
+
+  <!-- Marked library for converting Markdown to HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- CodeMirror CSS (with Dracula theme) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/dracula.min.css">
+  
+  <style>
+    /* Base Styles */
+    body {
+      background-color: #f0f0f0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    hr {
+      margin: 2rem 0;
+      border: 0;
+      border-top: 1px solid #ccc;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+      color: #444;
+    }
+    
+    /* Code Editor Styles: CodeMirror will replace the textarea */
+    .CodeMirror {
+      border: 1px solid #333;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    /* Button Styles */
+    button {
+      background-color: #007acc;
+      border: none;
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 1rem;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #005a9e;
+    }
+    
+    /* Markdown Answer Styles */
+    .markdown {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      padding: 1rem;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Courier New', monospace;
+      line-height: 1.5;
+      position: relative;
+    }
+    
+    /* New style for code blocks within the markdown container */
+    .markdown pre {
+      position: relative;
+      background-color: #2d2d2d; /* New background color for code blocks */
+      border-radius: 5px;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .markdown pre code {
+      background: none; /* Remove any default background on <code> */
+      color: #d4d4d4;
+    }
+    
+    .error {
+      color: #f44747;
+      font-weight: bold;
+    }
+
+    /* Modal Styles for Loading Animation */
+    .modal {
+      display: none; /* Hidden by default */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 300px;
+      text-align: center;
+      border-radius: 10px;
+    }
+    .loader {
+      border: 8px solid #f3f3f3; /* Light grey */
+      border-top: 8px solid #007acc; /* Blue */
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+      margin: auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Styles for Copy Button in Code Blocks */
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #007acc;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0.8;
+      transition: opacity 0.2s ease;
+    }
+    .copy-btn:hover {
+      opacity: 1;
+    }
+    /* Ensure that the pre element is positioned relative so the button can be absolute */
+    .markdown pre {
+      position: relative;
+    }
+  </style>
 </head>
 <body>
+  <div class="container">
     <h1>AI-Powered Code Assistant</h1>
-    <form action="/analyze" method="post">
-         <label for="code_snippet">Enter your Python code snippet:</label><br>
-         <textarea id="code_snippet" name="code_snippet" rows="15" placeholder="Paste your code here...">{{ code_snippet | default('') }}</textarea><br><br>
-         <button type="submit">Analyze Code</button>
+    <form action="/analyze" method="post" id="analyzeForm">
+      <label for="code_snippet">Enter your Python code snippet:</label>
+      <!-- The textarea will be transformed into a CodeMirror editor -->
+      <textarea id="code_snippet" name="code_snippet">{{ code_snippet | default('') }}</textarea>
+      <button type="submit">Analyze Code</button>
     </form>
 
     {% if analysis %}
-        <hr>
-        <h2>Analysis</h2>
-        {% if not analysis.syntax_valid %}
-            <p class="error"><strong>Syntax Error:</strong> {{ analysis.syntax_error }}</p>
-        {% endif %}
-        <h3>Suggestions:</h3>
-        <pre>{{ analysis.suggestions }}</pre>
+      <hr>
+      <h2>Analysis</h2>
+      {% if not analysis.syntax_valid %}
+        <p class="error"><strong>Syntax Error:</strong> {{ analysis.syntax_error }}</p>
+      {% endif %}
+      <h3>Suggestions:</h3>
+      <!-- Container where the Markdown answer will be rendered -->
+      <div class="markdown" id="analysisContent"></div>
     {% endif %}
+  </div>
+
+  <!-- Modal for Loading Animation -->
+  <div id="loadingModal" class="modal">
+    <div class="modal-content">
+      <div class="loader"></div>
+      <p>We are processing your code...</p>
+    </div>
+  </div>
+
+  <!-- CodeMirror JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+  <script>
+    
+    var editor = CodeMirror.fromTextArea(document.getElementById("code_snippet"), {
+      lineNumbers: true,
+      mode: "python",
+      theme: "dracula",
+    });
+
+    editor.getWrapperElement().style.minWidth = "500px";
+
+    // Show the loading modal when the form is submitted
+    document.getElementById("analyzeForm").addEventListener("submit", function() {
+      document.getElementById("loadingModal").style.display = "block";
+    });
+  </script>
+
+  {% if analysis is defined and analysis and analysis.suggestions %}
+  <script>
+    // Use the tojson filter to safely escape the analysis suggestions for JS.
+    const analysisMarkdown = {{ analysis.suggestions | tojson | safe}};
+    // Convert the Markdown to HTML using marked
+    const htmlContent = marked.parse(analysisMarkdown);
+    // Insert the converted HTML into the analysis container
+    document.getElementById('analysisContent').innerHTML = htmlContent;
+
+    // Function to add copy buttons to all code blocks within the analysisContent
+    function addCopyButtons() {
+      // Find all <pre> elements within the markdown container
+      const codeBlocks = document.querySelectorAll('#analysisContent pre');
+      codeBlocks.forEach(block => {
+        // Create the copy button
+        const button = document.createElement("button");
+        button.innerText = "Copy";
+        button.className = "copy-btn";
+        // Append the button to the code block (positioned absolutely via CSS)
+        const code = block.querySelector('code');
+    if (code) {
+      // Create CodeMirror instance
+      const editor = CodeMirror(function(elt) {
+        block.parentNode.replaceChild(elt, block);
+      }, {
+        value: code.textContent,
+        mode: 'python', 
+        theme: 'dracula', 
+        readOnly: true,
+        cursorHeight: 0,     
+        lineNumbers: true,
+      });
+
+      const wrapper = editor.getWrapperElement();
+      wrapper.style.height = 'auto';
+      editor.setSize(null, 'auto');
+
+      // Add copy button to the CodeMirror wrapper
+      editor.getWrapperElement().appendChild(button);
+    }
+
+        // When the button is clicked, copy the code inside the block's <code> element
+        button.addEventListener("click", () => {
+          const code = block.querySelector("code").innerText;
+          navigator.clipboard.writeText(code).then(() => {
+            button.innerText = "Copied!";
+            setTimeout(() => {
+              button.innerText = "Copy";
+            }, 2000);
+          }).catch(err => {
+            console.error("Error copying text: ", err);
+          });
+        });
+      });
+    }
+
+    // Call the function to add copy buttons
+    addCopyButtons();
+  </script>
+  {% endif %}
 </body>
 </html>
