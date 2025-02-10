@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI-Powered Code Assistant</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        textarea { width: 100%; font-family: monospace; }
+        .error { color: red; }
+        pre { background: #f4f4f4; padding: 1rem; }
+    </style>
+</head>
+<body>
+    <h1>AI-Powered Code Assistant</h1>
+    <form action="/analyze" method="post">
+         <label for="code_snippet">Enter your Python code snippet:</label><br>
+         <textarea id="code_snippet" name="code_snippet" rows="15" placeholder="Paste your code here...">{{ code_snippet | default('') }}</textarea><br><br>
+         <button type="submit">Analyze Code</button>
+    </form>
+
+    {% if analysis %}
+        <hr>
+        <h2>Analysis</h2>
+        {% if not analysis.syntax_valid %}
+            <p class="error"><strong>Syntax Error:</strong> {{ analysis.syntax_error }}</p>
+        {% endif %}
+        <h3>Suggestions:</h3>
+        <pre>{{ analysis.suggestions }}</pre>
+    {% endif %}
+</body>
+</html>
